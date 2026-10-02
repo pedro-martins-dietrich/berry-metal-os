@@ -1,0 +1,10 @@
+.vs
+.vscode
+.env
+.DS_Store
+
+build
+out
+install
+
+SD Card/kernel8.img
