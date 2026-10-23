@@ -6,6 +6,9 @@ set(KERNEL "kernel.elf")
 set(KERNEL_IMAGE "kernel8.img")
 set(LINKER_FILE "${CMAKE_SOURCE_DIR}/linker.ld")
 
+set(CMAKE_USE_RELATIVE_PATHS OFF)
+set(CMAKE_TRUE_BUILD_DIR "${CMAKE_BINARY_DIR}")
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -29,11 +32,12 @@ target_compile_options(
 
 target_link_options(
     ${KERNEL} PRIVATE
-    -T${LINKER_FILE}
+    -T ${LINKER_FILE}
     -nostdlib
     -nodefaultlibs
     -nostartfiles
-    -Wl,--gc-sections
+    "-Wl,--gc-sections"
+    "-Wl,--no-warn-rwx-segments"
 )
 
 set_target_properties(
@@ -44,13 +48,13 @@ set_target_properties(
 add_custom_command(
     TARGET ${KERNEL}
     POST_BUILD
-    COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:${KERNEL}> ${CMAKE_BINARY_DIR}/${KERNEL_IMAGE}
-    COMMENT "Creating bare-metal kernel image.\n"
+    COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:${KERNEL}> "${CMAKE_BINARY_DIR}/${KERNEL_IMAGE}"
+    COMMENT "Creating bare-metal kernel image."
 )
 
 add_custom_command(
     TARGET ${KERNEL}
     POST_BUILD
-    COMMAND copy ${CMAKE_BINARY_DIR}/${KERNEL_IMAGE} "${CMAKE_SOURCE_DIR}/SD Card/${KERNEL_IMAGE}"
-    COMMENT "Copied kernel image to the SD Card folder.\n"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/${KERNEL_IMAGE}" "${CMAKE_SOURCE_DIR}/SD Card/${KERNEL_IMAGE}"
+    COMMENT "Copied kernel image to the SD Card folder."
 )
