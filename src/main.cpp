@@ -1,6 +1,6 @@
 #include "utils.hpp"
 #include "gpio/gpio.hpp"
-#include "uart/uart.hpp"
+#include "communication_protocols/uart.hpp"
 
 constexpr uint32_t LED_PIN = 17U;
 
