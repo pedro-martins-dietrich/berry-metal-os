@@ -1,6 +1,7 @@
 #include "mailbox.hpp"
 
-#include "../utils.hpp"
+#include "../utils/utils.hpp"
+#include "../utils/log.hpp"
 
 namespace mailbox
 {
@@ -115,9 +116,9 @@ namespace mailbox
     constexpr uint32_t RESPONSE_OK_CODE = 0x80000000;
     constexpr uint32_t RESPONSE_ERROR_CODE = 0x80000001;
 
-    constexpr uint32_t TIMEOUT_US = 100000;
+    constexpr uint32_t TIMEOUT_US = 100000U;
 
-    static alignas(16) volatile uint32_t message[8];
+    alignas(16) static volatile uint32_t message[8];
 
     // Sends the message to the GPU and awaits the answer
     bool exchange(channel_t channel);
@@ -125,16 +126,21 @@ namespace mailbox
 
 uint32_t mailbox::get_clock_frequency(clock_id_t clock_id)
 {
-    message[0] = 8U * sizeof(uint32_t); // Buffer size (B)
+    message[0] = 8U * sizeof(uint32_t); // Buffer size (in bytes)
     message[1] = REQUEST_CODE;
     message[2] = TAG_GET_CLOCK_RATE;
-    message[3] = 0U; // Value buffer size
-    message[4] = 4U; // Request size
+    message[3] = 8U; // Value buffer size
+    message[4] = 4U; // Request payload size
     message[5] = clock_id;
     message[6] = 0U; // GPU's response for the clock rate, in Hz
     message[7] = TAG_END;
 
-    return exchange(CHANNEL_PROPERTY) ? message[6] : 0U;
+    if(!exchange(CHANNEL_PROPERTY) || !(message[4] & RESPONSE_OK_CODE))
+    {
+        log::log(log::Level::Error, "Failed to fetch clock frequency for clock ID: %d", clock_id);
+        return 0U;
+    }
+    return message[6];
 }
 
 bool mailbox::exchange(channel_t channel)
@@ -146,19 +152,36 @@ bool mailbox::exchange(channel_t channel)
     while(reg(STATUS) & STATUS_FULL)
     {
         if(time::get_microsecond() - t0 > TIMEOUT_US)
+        {
+            log::log(log::Level::Warning, "Timeout while waiting for the mailbox to be available. Tag: %X", message[2]);
             return false;
+        }
     }
     reg(WRITE) = mail;
 
     t0 = time::get_microsecond();
     while(true)
     {
-        while(reg(STATUS) & STATUS_FULL)
+        while(reg(STATUS) & STATUS_EMPTY)
         {
             if(time::get_microsecond() - t0 > TIMEOUT_US)
+            {
+                log::log
+                (
+                    log::Level::Warning,
+                    "Timeout while waiting for the mailbox return message. Tag: %X",
+                    message[2]
+                );
                 return false;
+            }
         }
         if(reg(READ) == mail) break;
     }
-    return (message[1] == RESPONSE_OK_CODE);
+
+    if(message[1] != RESPONSE_OK_CODE)
+    {
+        log::log(log::Level::Error, "Mailbox response code: %X - Tag: %X", message[1], message[2]);
+        return false;
+    }
+    return true;
 }
