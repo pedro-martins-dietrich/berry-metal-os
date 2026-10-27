@@ -1,6 +1,6 @@
 #include "uart.hpp"
 
-#include "../utils.hpp"
+#include "../utils/utils.hpp"
 #include "../gpio/gpio.hpp"
 
 namespace uart

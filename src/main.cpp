@@ -1,14 +1,11 @@
-#include "utils.hpp"
-#include "gpio/gpio.hpp"
-#include "uart/uart.hpp"
+#include "utils/log.hpp"
+#include "communication_protocols/spi.hpp"
 
 constexpr uint32_t LED_PIN = 17U;
 
-void error(uint32_t code);
-
 extern "C" void main()
 {
-    gpio::select(LED_PIN, gpio::MODE_OUTPUT);
+    log::configure_error_led(LED_PIN);
 
     uart::Config uart_config{};
     uart_config.baud_rate = 115200U;
@@ -17,45 +14,20 @@ extern "C" void main()
     uart_config.stop_bits = uart::StopBits::One;
     uart_config.use_fifo = true;
 
-    bool success = uart::configure(uart_config);
-    if(!success)
-        error(7U);
+    log::configure_log_uart(uart_config);
 
-    uart::flushRX();
+    spi::Config spi_config{};
+    spi_config.clock_frequency = 8000000U;
+    spi_config.clock_phase = true;
+    spi_config.clock_polarity = true;
+    spi_config.use_miso = false;
+    spi_config.chip_select_0 = true;
+    spi_config.chip_select_1 = false;
 
-    uint8_t received_data;
-    uart::ResultRX result;
-
-    uart::print("UART Test.\n");
-
-    while(true)
-    {
-        if(uart::receive(received_data, 100000U, result))
-        {
-            if(result != uart::ResultRX::Ok)
-                error(static_cast<uint32_t>(result));
-            if(received_data >= 'a' && received_data <= 'z')
-                received_data -= 0x20;
-            uart::send(received_data);
-        }
-    }
+    if(!spi::configure(spi_config))
+        log::log(log::Level::Critical, "Failed to initialize SPI.");
+    log::log(log::Level::Info, "SPI successfully configured.");
 
     gpio::set(LED_PIN);
     while(true);
-}
-
-void error(uint32_t code)
-{
-    while(true)
-    {
-        for(uint32_t i = 0; i < code; i++)
-        {
-            gpio::set(LED_PIN);
-            time::wait_microseconds(700000U);
-
-            gpio::clear(LED_PIN);
-            time::wait_microseconds(300000U);
-        }
-        time::wait_microseconds(4000000U);
-    }
 }
