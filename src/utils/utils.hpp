@@ -9,6 +9,7 @@ inline volatile uint32_t& reg(uintptr_t address)
     return *reinterpret_cast<volatile uint32_t*>(address);
 }
 
+// Basic system clock handler for time operations
 namespace time
 {
     constexpr uintptr_t SYSTEM_CLOCK = 0x3F003004;
@@ -24,5 +25,14 @@ namespace time
     {
         const uint32_t t0 = reg(SYSTEM_CLOCK);
         while(reg(SYSTEM_CLOCK) - t0 <= us);
+    }
+}
+
+// Pixel related operations
+namespace pixel
+{
+    inline constexpr uint16_t color565(uint8_t r, uint8_t g, uint8_t b)
+    {
+        return static_cast<uint16_t>(((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3));
     }
 }
