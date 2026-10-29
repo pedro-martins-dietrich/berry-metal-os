@@ -5,10 +5,10 @@
 
 namespace log
 {
-    bool error_led_configured = false;
-    bool uart_configured = false;
+    static bool error_led_configured = false;
+    static bool uart_configured = false;
 
-    uint32_t error_led_gpio_num = 0U;
+    static uint32_t error_led_gpio_num = 0U;
 }
 
 void log::configure_error_led(uint32_t gpio_num)

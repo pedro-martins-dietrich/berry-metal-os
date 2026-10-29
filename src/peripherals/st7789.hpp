@@ -11,16 +11,16 @@ namespace st7789
     // ST7789 configuration data
     struct Config
     {
-        uint32_t data_command_gpio_num = 0xFF;
-        uint32_t reset_gpio_num = 0xFF;
-        uint32_t backlight_gpio_num = 0xFF;
+        uint32_t data_command_gpio_num = ~0U;
+        uint32_t reset_gpio_num = ~0U;
+        uint32_t backlight_gpio_num = ~0U;
         uint8_t rotation = 0; // Amount of 90 degrees rotations (0, 1, 2 or 3)
         bool invert = true;
         bool bgr_color_format = false;
     };
 
     // Sets up the ST7789 device - requires SPI to be configured
-    bool configure(const Config& configuration);
+    bool configure(const Config& config);
 
     // Draws a rectangle with a solid color
     void fill_rectangle(uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t color);

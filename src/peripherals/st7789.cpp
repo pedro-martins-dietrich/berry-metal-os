@@ -2,6 +2,7 @@
 
 #include "../gpio/gpio.hpp"
 #include "../communication_protocols/spi.hpp"
+#include "../utils/log.hpp"
 
 namespace st7789
 {
@@ -63,7 +64,10 @@ namespace st7789
 
     constexpr size_t chunk_size = 512;
 
-    static Config config;
+    static uint32_t data_command_gpio_num = ~0U;
+    static bool bgr_color_format = false;
+    static uint8_t rotation = 0;
+
     static bool configured = false;
     static bool ok_status = false;
 
@@ -81,15 +85,20 @@ namespace st7789
     void set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1);
 }
 
-bool st7789::configure(const Config& configuration)
+bool st7789::configure(const Config& config)
 {
-    config = configuration;
+    configured = false;
+    ok_status = true;
 
-    gpio::select(config.data_command_gpio_num, gpio::MODE_OUTPUT);
+    data_command_gpio_num = config.data_command_gpio_num;
+    bgr_color_format = config.bgr_color_format;
+    rotation = config.rotation;
+
+    gpio::select(data_command_gpio_num, gpio::MODE_OUTPUT);
     gpio::select(config.backlight_gpio_num, gpio::MODE_OUTPUT);
     gpio::select(config.reset_gpio_num, gpio::MODE_OUTPUT);
 
-    gpio::set(config.data_command_gpio_num);
+    gpio::set(data_command_gpio_num);
     gpio::clear(config.backlight_gpio_num);
 
     gpio::set(config.reset_gpio_num);
@@ -113,11 +122,13 @@ bool st7789::configure(const Config& configuration)
     send_command(COMMAND_NORMAL_DISPLAY_MODE_ON);
     time::wait_microseconds(20'000U);
 
+    configured = true;
     fill_screen(0x0000);
     send_command(COMMAND_DISPLAY_ON);
     time::wait_microseconds(20'000U);
 
     gpio::set(config.backlight_gpio_num);
+    configured = ok_status;
     return ok_status;
 }
 
@@ -161,10 +172,10 @@ void st7789::draw_bitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height
     while(remaining_bytes)
     {
         const uint32_t buffer_size = (remaining_bytes < chunk_size) ? remaining_bytes : chunk_size;
-        for(uint32_t i = 0; i < buffer_size; i += 2)
+        for(size_t i = 0; i < buffer_size - 1; i += 2)
         {
-            pixel_data[i] = static_cast<uint8_t>(pixels[i] >> 8);
-            pixel_data[i + 1] = static_cast<uint8_t>(pixels[i] & 0xFF);
+            pixel_data[i] = static_cast<uint8_t>(pixels[i >> 1] >> 8);
+            pixel_data[i + 1] = static_cast<uint8_t>(pixels[i >> 1] & 0xFF);
         }
         send_data(pixel_data, buffer_size);
         pixels += (buffer_size >> 1);
@@ -182,24 +193,30 @@ void st7789::set_pixel(uint16_t x, uint16_t y, uint16_t color)
 
 void st7789::send_command(command_t command, const uint8_t* data, size_t size)
 {
-    gpio::clear(config.data_command_gpio_num);
+    gpio::clear(data_command_gpio_num);
     if(!spi::transfer(reinterpret_cast<uint8_t*>(&command), nullptr, 1))
+    {
+        log::log(log::Level::Error, "Failed to issue command %X to the ST7789 device.", command);
         ok_status = false;
+    }
     if(size)
         send_data(data, size);
 }
 
 void st7789::send_data(const uint8_t* data, size_t size)
 {
-    gpio::set(config.data_command_gpio_num);
+    gpio::set(data_command_gpio_num);
     if(!spi::transfer(data, nullptr, size))
+    {
+        log::log(log::Level::Error, "Failed to send %dB of data to the ST7789 device.", size);
         ok_status = false;
+    }
 }
 
 void st7789::set_rotation()
 {
     uint8_t memory_access_data_control = MAD_CONTROL_NONE;
-    switch(config.rotation & 0x03)
+    switch(rotation & 0x03)
     {
         case 0x00:
             memory_access_data_control = MAD_CONTROL_NONE;
@@ -222,7 +239,7 @@ void st7789::set_rotation()
             y_offset = 0;
             break;
     }
-    memory_access_data_control |= (config.bgr_color_format ? MAD_CONTROL_BGR : MAD_CONTROL_NONE);
+    memory_access_data_control |= (bgr_color_format ? MAD_CONTROL_BGR : MAD_CONTROL_NONE);
     send_command(COMMAND_MEMORY_ACCESS_DATA_CONTROL, &memory_access_data_control, 1);
 }
 
