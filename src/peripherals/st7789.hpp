@@ -24,10 +24,13 @@ namespace st7789
 
     // Draws a rectangle with a solid color
     void fill_rectangle(uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint16_t color);
-    // Draws the provided image at the specified location
-    void draw_bitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint16_t* pixels);
     // Changes the pixel value at the specified location
     void set_pixel(uint16_t x, uint16_t y, uint16_t color);
     // Changes all pixels from the screen to the specified color
     inline void fill_screen(uint16_t color) { fill_rectangle(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT, color); }
+
+    // Draws the provided image at the specified location
+    void draw_bitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint16_t* pixels);
+    // Draws text to at the specified location
+    void print(const char* text, uint16_t x, uint16_t y, uint16_t color = 0xFFFF, uint16_t background = 0x0000, uint8_t scale = 2);
 }

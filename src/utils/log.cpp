@@ -26,7 +26,8 @@ void log::configure_log_uart(const uart::Config& uart_config)
         return;
     }
     uart_configured = true;
-    log(Level::Info, "UART log configured.\n");
+    uart::print("\n");
+    log(Level::Info, "UART log configured.");
 }
 
 void log::led_error(uint32_t error_code)

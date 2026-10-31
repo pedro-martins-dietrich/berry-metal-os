@@ -44,6 +44,8 @@ extern "C" void main()
     st7789::fill_rectangle(40, 0, 40, 120, 0x001F);
     st7789::fill_rectangle(120, 160, 120, 40, 0xFFFF);
 
+    st7789::print("ST7789", 20, 100, 0xFFFF, 0x7010, 5);
+
     gpio::set(LED_PIN);
     while(true);
 }

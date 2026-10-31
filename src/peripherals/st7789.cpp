@@ -1,7 +1,8 @@
 #include "st7789.hpp"
 
-#include "../gpio/gpio.hpp"
 #include "../communication_protocols/spi.hpp"
+#include "../gpio/gpio.hpp"
+#include "../graphics/font_data.hpp"
 #include "../utils/log.hpp"
 
 namespace st7789
@@ -157,6 +158,14 @@ void st7789::fill_rectangle(uint16_t x, uint16_t y, uint16_t width, uint16_t hei
     }
 }
 
+void st7789::set_pixel(uint16_t x, uint16_t y, uint16_t color)
+{
+    if(!configured || x >= DISPLAY_WIDTH || y >= DISPLAY_HEIGHT) return;
+    set_window(x, y, x, y);
+    const uint8_t pixel_data[2] = {uint8_t(color >> 8), uint8_t(color & 0xFF)};
+    send_data(pixel_data, 2);
+}
+
 void st7789::draw_bitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint16_t* pixels)
 {
     if(!configured || !pixels || width == 0 || height == 0) return;
@@ -183,12 +192,66 @@ void st7789::draw_bitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height
     }
 }
 
-void st7789::set_pixel(uint16_t x, uint16_t y, uint16_t color)
+void st7789::print(const char* text, uint16_t x, uint16_t y, uint16_t color, uint16_t background, uint8_t scale)
 {
-    if(!configured || x >= DISPLAY_WIDTH || y >= DISPLAY_HEIGHT) return;
-    set_window(x, y, x, y);
-    const uint8_t pixel_data[2] = {uint8_t(color >> 8), uint8_t(color & 0xFF)};
-    send_data(pixel_data, 2);
+    if(!text || scale == 0 || x > DISPLAY_WIDTH || (y + scale * bitmap_font::CHAR_HEIGHT) > DISPLAY_HEIGHT)
+        return;
+
+    const uint16_t max_text_width = DISPLAY_WIDTH - x;
+    uint16_t text_width = 0;
+    size_t char_count = 0;
+    for(const char* t = text; *t; t++)
+    {
+        uint16_t char_width = 0;
+        bitmap_font::get_character_data(*t, char_width);
+
+        const uint16_t advance = (scale * char_width) + (char_count ? scale : 0);
+        if(text_width + advance > max_text_width) break;
+
+        text_width += advance;
+        char_count++;
+    }
+    if(char_count == 0) return;
+
+    uint16_t rows_left = bitmap_font::CHAR_HEIGHT * scale;
+    if(rows_left > DISPLAY_HEIGHT - y)
+        rows_left = DISPLAY_HEIGHT - y;
+    set_window(x, y, x + text_width - 1, y + rows_left - 1);
+
+    const uint8_t fg[2] = {static_cast<uint8_t>(color >> 8), static_cast<uint8_t>(color & 0xFF)};
+    const uint8_t bg[2] = {static_cast<uint8_t>(background >> 8), static_cast<uint8_t>(background & 0xFF)};
+
+    uint8_t line[2 * DISPLAY_WIDTH];
+
+    for(uint16_t font_row = 0; font_row < bitmap_font::CHAR_HEIGHT && rows_left > 0; font_row++)
+    {
+        size_t index = 0;
+
+        auto insert = [&](bool active)
+        {
+            for(int i = 0; i < scale; i++)
+            {
+                line[index++] = active ? fg[0] : bg[0];
+                line[index++] = active ? fg[1] : bg[1];
+            }
+        };
+
+        const char* t = text;
+        for(size_t char_i = 0; char_i < char_count; char_i++, t++)
+        {
+            if(char_i > 0)
+                insert(false);
+            uint16_t char_width = 0;
+            const uint8_t* data = bitmap_font::get_character_data(*t, char_width);
+            if(!data) continue;
+
+            for(uint16_t column = 0; column < char_width; column++)
+                insert((data[column] >> font_row) & 0x01);
+        }
+
+        for(uint32_t r = 0U; r < scale && rows_left > 0; r++, rows_left--)
+            send_data(line, index);
+    }
 }
 
 void st7789::send_command(command_t command, const uint8_t* data, size_t size)
